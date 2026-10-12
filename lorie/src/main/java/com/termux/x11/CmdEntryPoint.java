@@ -196,6 +196,14 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static void initEntryPoint() {
         ctx = createContext();
 
+        // Hosts that extract native libraries (extractNativeLibs=true) can't dlopen
+        // them from inside the APK; they pass the extracted file's path instead.
+        String override = System.getenv("XLORIE_LIBRARY");
+        if (override != null) {
+            System.load(override);
+            return;
+        }
+
         String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
         URL res = loader != null ? loader.getResource(path) : null;
