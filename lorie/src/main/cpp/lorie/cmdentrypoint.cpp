@@ -264,6 +264,23 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     lorieEvent e = {0};
     valuator_mask_zero(&mask);
 
+    // Several Android windows can show one server (one per X window); the one in front holds
+    // the current connection. Older ones only get closed: their end must not reset the
+    // server's state, and their input (sent while they go away) is stale.
+    if (fd != conn_fd) {
+        if (ready & X_NOTIFY_ERROR) {
+            InputThreadUnregisterDev(fd);
+            close(fd);
+        } else {
+            char drop[4096];
+            if (recv(fd, drop, sizeof(drop), MSG_DONTWAIT) == 0) {
+                InputThreadUnregisterDev(fd);
+                close(fd);
+            }
+        }
+        return;
+    }
+
     if (ready & X_NOTIFY_ERROR) {
         LorieBuffer* buf;
         InputThreadUnregisterDev(fd);
@@ -553,8 +570,14 @@ static jobject getXConnection(JNIEnv *env, __unused jobject cls) {
     jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
     QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
-        InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, nullptr);
+        LorieBuffer* buf;
+        // A new window takes over from the previous one (see handleLorieEvents): it has none of
+        // the buffers that one was sent, so forget them and send them again.
+        while ((buf = LorieBufferList_first(&registeredBuffers)))
+            LorieBuffer_removeFromList(buf);
+        // Current before listening, so its first message isn't taken for a stale window's.
         conn_fd = (int) (int64_t) closure;
+        InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, nullptr);
         lorieActivityConnected();
         return TRUE;
     }, nullptr, (void*) (int64_t) client[1]);

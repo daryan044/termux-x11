@@ -61,7 +61,8 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     private ClipboardManager clipboard;
-    private long lastClipboardTimestamp = System.currentTimeMillis();
+    // 0, not "now": text copied before this window opened should still paste into its apps.
+    private long lastClipboardTimestamp = 0;
     private long mNativeContext;
     private boolean clipboardSyncEnabled = false;
     private boolean hardwareKbdScancodesWorkaround = false;
@@ -629,7 +630,7 @@ public class LorieView extends SurfaceView implements InputStub {
         long timestamp = desc == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O ? lastClipboardTimestamp + 1 : desc.getTimestamp();
         if (clipboardSyncEnabled && desc != null &&
                 lastClipboardTimestamp < timestamp &&
-                desc.getMimeTypeCount() == 1 &&
+                // Any clip with text in it: browsers copy text/plain and text/html together.
                 (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
                         desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML))) {
             lastClipboardTimestamp = timestamp;
