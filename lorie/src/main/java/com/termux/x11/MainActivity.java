@@ -139,6 +139,10 @@ public class MainActivity extends AppCompatActivity {
     // "-tag <tag>" windows register here, keyed by tag ("" for the default window). Weakly
     // held so a window that dies without deregistering isn't pinned in memory.
     private static final Map<String, WeakReference<MainActivity>> instances = new HashMap<>();
+    // More than one window can show the same server (one Android task per X window). They share
+    // its service; the one in front holds the server's single display connection.
+    private static final Map<String, ICmdEntryInterface> services = new HashMap<>();
+    private static final Map<String, WeakReference<MainActivity>> connectionOwners = new HashMap<>();
     private String tag = "";
     private boolean redirected;
 
@@ -382,6 +386,8 @@ public class MainActivity extends AppCompatActivity {
         IBinder pendingConnection = app.pendingConnections.remove(tag);
         if (pendingConnection != null)
             connectToService(pendingConnection);
+        else if (services.get(tag) != null && services.get(tag).asBinder().isBinderAlive())
+            service = services.get(tag); // another window of a server that's already running
 
         if (tryConnect()) {
             final View content = findViewById(android.R.id.content);
@@ -695,6 +701,8 @@ public class MainActivity extends AppCompatActivity {
 
     void connectToService(IBinder ibinder) {
         service = ICmdEntryInterface.Stub.asInterface(ibinder);
+        if (service != null)
+            services.put(tag, service);
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
                 Log.v("MainActivity", "Extracting logcat fd.");
@@ -811,6 +819,18 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         app.onActivityResumed(this);
+
+        // The window in front is the one the server draws to and takes input from.
+        instances.put(tag, new WeakReference<>(this));
+        WeakReference<MainActivity> ownerRef = connectionOwners.get(tag);
+        MainActivity owner = ownerRef == null ? null : ownerRef.get();
+        if (owner != null && owner != this && !owner.isDestroyed()) {
+            if (service == null)
+                service = services.get(tag);
+            getLorieView().connect(-1);
+            tryConnect();
+        }
+        connectionOwners.put(tag, new WeakReference<>(this));
 
         orientationListener.enable();
         setTerminalToolbarView();
