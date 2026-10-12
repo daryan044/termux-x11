@@ -38,7 +38,17 @@ android {
 
     compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
     compileOptions.targetCompatibility JavaVersion.VERSION_1_9
-    externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
+    // Hosts that can't run the Linux-only native build (e.g. Windows) can point
+    // lorie.prebuiltJniLibs at a directory of <abi>/libXlorie.so built elsewhere.
+    def prebuiltJniLibs = project.findProperty('lorie.prebuiltJniLibs')
+    if (prebuiltJniLibs != null) {
+        def dir = rootProject.file(prebuiltJniLibs)
+        if (!dir.isDirectory())
+            throw new GradleException("lorie.prebuiltJniLibs points at ${dir}, which does not exist; build the native libraries first")
+        sourceSets.main.jniLibs.srcDirs += dir
+    } else {
+        externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
+    }
     packagingOptions.jniLibs.useLegacyPackaging false
     buildFeatures.aidl true
     buildFeatures.buildConfig true
