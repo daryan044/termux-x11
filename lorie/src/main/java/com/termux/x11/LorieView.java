@@ -355,10 +355,28 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     }
 
+    /** A scale (percent) for this view alone, ahead of the display settings; 0 to follow them. */
+    private int scaleOverride = 0;
+
+    /**
+     * Sizes the X screen from this view at [percent] scale, whatever the display settings say:
+     * a view on another display (a TV) wants a scale of its own. 0 follows the settings again.
+     */
+    public void setScaleOverride(int percent) {
+        if (scaleOverride == percent)
+            return;
+        scaleOverride = percent;
+        requestLayout();
+    }
+
     void getDimensionsFromSettings(int width, int height) {
         Prefs prefs = activity.prefs;
         int w = width;
         int h = height;
+        if (scaleOverride > 0) {
+            setCvtDimensions(width * 100 / scaleOverride, height * 100 / scaleOverride);
+            return;
+        }
         switch(prefs.displayResolutionMode.get()) {
             case "scaled": {
                 int scale = prefs.displayScale.get();

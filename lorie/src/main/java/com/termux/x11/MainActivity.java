@@ -856,6 +856,30 @@ public class MainActivity extends AppCompatActivity {
         return findViewById(R.id.lorieView);
     }
 
+    /**
+     * The server's display connection for a view outside this activity (one shown on another
+     * display): the server draws to and takes input from it, and this window's view keeps its
+     * last picture. Null when the server isn't reachable yet. See [reclaimDisplayConnection].
+     */
+    public ParcelFileDescriptor takeDisplayConnection() {
+        if (service == null)
+            service = services.get(tag);
+        try {
+            return service == null ? null : service.getXConnection();
+        } catch (Exception e) {
+            Log.e("MainActivity", "Couldn't hand the display connection over", e);
+            return null;
+        }
+    }
+
+    /** Takes the display connection back for this window's view, once the other one is gone. */
+    public void reclaimDisplayConnection() {
+        if (service == null)
+            service = services.get(tag);
+        getLorieView().connect(-1);
+        tryConnect();
+    }
+
     public ViewPager getTerminalToolbarViewPager() {
         return findViewById(R.id.terminal_toolbar_view_pager);
     }
