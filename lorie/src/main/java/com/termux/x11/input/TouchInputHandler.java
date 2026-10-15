@@ -461,6 +461,7 @@ public class TouchInputHandler {
     public void reloadPreferences(Prefs p) {
         setInputMode(Integer.parseInt(p.touchMode.get()));
         mInjector.tapToMove = p.tapToMove.get();
+        mInjector.longPressRightClick = p.longPressRightClick.get();
         mInjector.preferScancodes = p.preferScancodes.get();
         mInjector.pointerCapture = p.pointerCapture.get();
         mInjector.scaleTouchpad = p.scaleTouchpad.get() &&
@@ -883,6 +884,17 @@ public class TouchInputHandler {
                 if (screenPointLiesOutsideImageBoundary(x, y))
                     return;
                 moveCursorToScreenPoint(x, y);
+            }
+
+            // Touch and hold right-clicks, the way phones show context menus. Dragging stays
+            // on double-tap-and-hold (tap-to-move) and two-finger hold. Direct touch passes
+            // the finger to the app, which decides for itself.
+            boolean pointerMode = mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy
+                || mInputStrategy instanceof InputStrategyInterface.SimulatedTouchInputStrategy;
+            if (pointerCount == 1 && mInjector.longPressRightClick && pointerMode) {
+                mActivity.getLorieView().performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                mInputStrategy.onTap(InputStub.BUTTON_RIGHT);
+                return;
             }
 
             if (mInputStrategy.onPressAndHold(button, false))

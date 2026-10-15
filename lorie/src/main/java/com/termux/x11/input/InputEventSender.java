@@ -41,6 +41,8 @@ public final class InputEventSender {
     private final float[] mappedPoint = new float[2];
 
     public boolean tapToMove = false;
+    /** A one-finger long-press right-clicks, rather than starting a drag (pointer modes only). */
+    public boolean longPressRightClick = true;
     public boolean preferScancodes = false;
     public boolean pointerCapture = false;
     public boolean scaleTouchpad = false;
