@@ -741,6 +741,7 @@ public class MainActivity extends AppCompatActivity {
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 getLorieView().connect(fd.detachFd());
+                becomeConnectionOwner();
                 finishStartupDraw();
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged();
@@ -820,8 +821,19 @@ public class MainActivity extends AppCompatActivity {
 
         app.onActivityResumed(this);
 
-        // The window in front is the one the server draws to and takes input from.
         instances.put(tag, new WeakReference<>(this));
+        takeConnection();
+
+        orientationListener.enable();
+        setTerminalToolbarView();
+        getLorieView().requestFocus();
+    }
+
+    /**
+     * The window in front is the one the server draws to and takes input from: takes the
+     * display connection over from whichever window of this server had it.
+     */
+    private void takeConnection() {
         WeakReference<MainActivity> ownerRef = connectionOwners.get(tag);
         MainActivity owner = ownerRef == null ? null : ownerRef.get();
         if (owner != null && owner != this && !owner.isDestroyed()) {
@@ -830,11 +842,35 @@ public class MainActivity extends AppCompatActivity {
             getLorieView().connect(-1);
             tryConnect();
         }
-        connectionOwners.put(tag, new WeakReference<>(this));
+    }
 
-        orientationListener.enable();
-        setTerminalToolbarView();
-        getLorieView().requestFocus();
+    /**
+     * Records this window as the one holding the server's current connection: the newest
+     * connection is the current one. Recorded on connecting, not only on resume, or a window
+     * that connects in onCreate would drop that current connection again on resume.
+     *
+     * The window that held it before lets go of it. Every window's renderer maps the server's
+     * shared state, and one whose surface goes away marks it as having none to draw to: the old
+     * window, stopping right after a new one opened, left the new one frozen.
+     */
+    private void becomeConnectionOwner() {
+        WeakReference<MainActivity> previousRef = connectionOwners.get(tag);
+        MainActivity previous = previousRef == null ? null : previousRef.get();
+        if (previous != null && previous != this && !previous.isDestroyed())
+            previous.getLorieView().connect(-1);
+        connectionOwners.put(tag, new WeakReference<>(this));
+    }
+
+    /**
+     * Split screen and floating windows keep several windows resumed at once, so moving to
+     * another one resumes nothing: the window the user turned to stayed frozen, still showing
+     * what it showed when it last had the connection.
+     */
+    @Override
+    public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
+        super.onTopResumedActivityChanged(isTopResumedActivity);
+        if (isTopResumedActivity && !redirected)
+            takeConnection();
     }
 
     @Override
