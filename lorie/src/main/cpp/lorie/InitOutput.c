@@ -13,6 +13,7 @@
 #endif
 
 #include <sys/eventfd.h>
+#include <unistd.h>
 #include <sys/errno.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
@@ -545,6 +546,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 
         DamageEmpty(pvfb->damage);
         pvfb->state->drawRequested = TRUE;
+        pvfb->state->renderPending = TRUE;
     }
 
     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
@@ -1135,10 +1137,25 @@ static inline __always_inline Bool lorieNeedsGpuLock(PixmapPtr pPix, LoriePixmap
            LorieBuffer_hasGpuCopyPending(priv->buffer);
 }
 
+// Called with state->lock held, before writing the root window: waits for the draw the last
+// lorieRedraw flushed for (see renderPending). Bounded, as a renderer without a surface never
+// draws; then the write goes ahead.
+static void lorieWaitForPendingRender(void) {
+    for (int i = 0; pvfb->state->renderPending && i < 500; i++) {
+        lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
+        usleep(100);
+        lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
+    }
+    pvfb->state->renderPending = FALSE;
+}
+
 Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     LoriePixmapPriv *priv = exaGetPixmapDriverPrivate(pPix);
-    if (lorieNeedsGpuLock(pPix, priv, index))
+    if (lorieNeedsGpuLock(pPix, priv, index)) {
         lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
+        if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
+            lorieWaitForPendingRender();
+    }
 
     if (!priv->locked && !priv->mem) {
         int err = LorieBuffer_lock(priv->buffer, &priv->locked);

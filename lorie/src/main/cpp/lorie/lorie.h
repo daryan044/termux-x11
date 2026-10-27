@@ -218,6 +218,14 @@ struct lorie_shared_server_state {
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;
 
+    /*
+     * Set by the X server once it flushed the root window's CPU caches for a draw, cleared by the
+     * renderer once that draw's fence signalled. While it's set the X server doesn't write the
+     * root window: the CPU cache keeps part of a big write while the rest reaches memory, and the
+     * renderer drawing then would show the new frame above some row and the old one below.
+     */
+    volatile uint8_t renderPending;
+
     /* We should avoid triggering renderer if there is no output surface */
     volatile uint8_t surfaceAvailable;
 

@@ -910,6 +910,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     pthread_spin_unlock(&bufferLock);
     if (!buffer) {
         log("Buffer %llu not found", state->rootWindowTextureID);
+        state->renderPending = FALSE;
         return;
     }
 
@@ -925,6 +926,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         // Otherwise rendererShouldWait sees drawRequested or a pending cursor update and busy-spins
         // retrying this same mismatch instead of waiting for the buffer of the requested size.
         state->drawRequested = FALSE;
+        state->renderPending = FALSE;
         *waitingForBuffers = true;
         return;
     }
@@ -1051,6 +1053,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         notifyGpuCopyDone();
     }
     state->waitForNextFrame = true;
+    state->renderPending = FALSE;
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
 
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE)
