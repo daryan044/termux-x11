@@ -276,7 +276,10 @@ struct Renderer {
     EGLConfig cfg = nullptr;
     ANativeWindow *defaultWin = nullptr, *win = nullptr;
     struct xorg_list addedBuffers{}, buffers{}, removedBuffers{};
-    volatile jint filtering = GL_NEAREST;
+    // The displayFilteringMode preference's default. A renderer starts drawing before the view
+    // applies the preference (and a new one, for a window opened later, until the next change),
+    // and nearest makes non-integer scales draw some pixel columns twice and others once.
+    volatile jint filtering = GL_LINEAR;
 
     pthread_t thread = 0;
     volatile bool stopping = false;
